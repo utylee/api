@@ -245,33 +245,24 @@ if __name__ == "__main__":
 
 
     # clipboarrd 구조 
-    #       { time (_key값), text, type(0 or 1 : text or url ) }
-    # app['clipboards'] = ['데헷', ['빵야빵야','핑크', '일자보지']]
-
-    # app['clipboards'] = [ 
-    #         { 'time': round(time.time()), 'text': '데헷', 'type': 0 },
-    #         { 'time': round(time.time()), 'text': '빵야빵야', 'type': 0 },
-    #         { 'time': round(time.time()), 'text': 'http://naver.com', 'type': 1 },
-    #         { 'time': round(time.time()), 'text': '일자도끼', 'type': 2 },
-    #         { 'time': round(time.time()), 'text': '하하하하하하하하', 'type': 0 }
-    #         ]
+    #       { uid (_key값), time , text, type(0 or 1 : text or url ) }
 
     '''
     app['clipboards'] = [ 
-            { 'time': 1640412852000, 'text': '데헷', 'type': 0 },
-            { 'time': 1640412853000, 'text': '빵야빵야', 'type': 0 },
-            { 'time': 1640412854000, 'text': 'http://naver.com', 'type': 1 },
-            { 'time': 1640412855000, 'text': '일자도끼', 'type': 2 },
-            { 'time': 1640412856000, 'text': '하하하하하하하하', 'type': 0 }
+            { 'uid': 10000000, time': 1640412852000, 'text': '데헷', 'type': 0 },
+            { 'uid': 10000000, time': 1640412853000, 'text': '빵야빵야', 'type': 0 },
+            { 'uid': 10000000, time': 1640412854000, 'text': 'http://naver.com', 'type': 1 },
+            { 'uid': 10000000, time': 1640412855000, 'text': '일자도끼', 'type': 2 },
+            { 'uid': 10000000, time': 1640412856000, 'text': '하하하하하하하하', 'type': 0 }
             ]
             '''
 
     # print(app['clipboards'][0]['text'])
 
 
-    web.run_app(init(app), port=8080)
+    web.run_app(init(app), path=args.path)
+    # web.run_app(init(app), port=8080)
     # web.run_app(app, port=8080)
-    #web.run_app(app, path='/tmp/api.sock')
-    #web.run_app(app, path=args.path)
+    # web.run_app(init(app), path='/tmp/api.sock')
     #web.run_app(app, path='/tmp/api.sock', port=8080)
 
