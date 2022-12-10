@@ -9,11 +9,12 @@ tbl_hydro = sa.Table('hydro', meta,
         sa.Column('watergauge', sa.Integer),
         sa.Column('waterdate', sa.String(1024)),
         sa.Column('warning', sa.Boolean),
-        sa.Column('growth', sa.Integer),
+        sa.Column('growthgauge', sa.Integer),
         sa.Column('pieces', sa.String(1024)),
         sa.Column('rootvolume', sa.Integer),
         sa.Column('waterrate', sa.Integer),
         sa.Column('rootrate', sa.Integer),
         sa.Column('growthrate', sa.Integer),
+        sa.Column('imageurl', sa.String(255))
         )
 

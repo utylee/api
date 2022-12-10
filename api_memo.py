@@ -7,15 +7,17 @@ import random
 import time
 import uvloop
 from aiopg.sa import create_engine
-import db_memo as dm 
+import db_memo as dm
+
 
 def deco_link(t):
     print(t)
     r = t
-    m = re.search('://|magnet:',t.lower())
+    m = re.search('://|magnet:', t.lower())
     if m:
         r = f'<a href=\'{t}\'>{t}</a>'
     return r
+
 
 def check_type(arg):
     t = 0
@@ -28,6 +30,7 @@ def check_type(arg):
         t = 2
 
     return t
+
 
 async def removejs(request):
     j = await request.json()
@@ -52,17 +55,19 @@ async def removejs(request):
     print(app['clipboards'])
     return web.Response(text='kkk')
 
+
 def create_uid():
     uid = round(random.random() * 10000000)
 
     return uid
 
+
 async def addjs(request):
     l = app['clipboards']
     m = await request.json()
-    #print(m)
-    #return web.Response(text='')
-    #return web.json_response(m)
+    # print(m)
+    # return web.Response(text='')
+    # return web.json_response(m)
 
     #a = request.match_info['content']
 
@@ -73,7 +78,7 @@ async def addjs(request):
     dict['type'] = check_type(m['text'])
     dict['uid'] = create_uid()
     #dict['type'] = 0
-    
+
     l.append(dict)
     m = f'추가했습니다. 총 {len(l)}개의 항목이 있습니다\n\n'
     #m = f'추가했습니다. 총 {len(l)}개의 항목이 있습니다<br><br>'
@@ -82,18 +87,21 @@ async def addjs(request):
     await db_add_memo(request.app['engine'], dict)
 
     # 항목들도 다 보여주기로 합니다
-    #for i in l:
+    # for i in l:
     #    m += transl(i['text']) + '\n'
     #    #m += deco_link(i) + '<br>'
 
     return web.Response(text='0')
 
+
 def transl(t):
     print(t)
-    t = re.sub('_u_qa_', '?', t)                                                                    
+    t = re.sub('_u_qa_', '?', t)
     t = re.sub('_u_sp_', ' ', t)
     t = re.sub('_u_im_', '&', t)
     return t
+
+
 '''
 tbl_memo = sa.Table('memos', meta, 
         sa.Column('time', sa.Integer, primary_key=True),
@@ -101,18 +109,22 @@ tbl_memo = sa.Table('memos', meta,
         sa.Column('text', sa.String(255))
         )
         '''
+
+
 async def db_remove_memo(engine, id):
     async with engine.acquire() as conn:
-        await conn.execute(dm.tbl_memo.delete().where(dm.tbl_memo.c.uid==id))
+        await conn.execute(dm.tbl_memo.delete().where(dm.tbl_memo.c.uid == id))
     return 0
+
 
 async def db_add_memo(engine, dict):
     async with engine.acquire() as conn:
         await conn.execute(dm.tbl_memo.insert().values(time=dict['time'],
-                                                    type=dict['type'],
-                                                    uid=dict['uid'],
-                                                    text=dict['text']))
+                                                       type=dict['type'],
+                                                       uid=dict['uid'],
+                                                       text=dict['text']))
     return 0
+
 
 async def add(request):
     l = app['clipboards']
@@ -125,7 +137,7 @@ async def add(request):
     dict['type'] = check_type(a)
     # time을 key로 사용하니 겹치는 부분이 있어 따로 랜덤숫자를 생성하기로 합니다
     dict['uid'] = create_uid()
-    
+
     l.append(dict)
     m = f'추가했습니다. 총 {len(l)}개의 항목이 있습니다\n\n'
     #m = f'추가했습니다. 총 {len(l)}개의 항목이 있습니다<br><br>'
@@ -140,6 +152,7 @@ async def add(request):
 
     return web.Response(text=m)
 
+
 async def list(request):
     #m = ''
     l = app['clipboards']
@@ -148,6 +161,7 @@ async def list(request):
         m += transl(i['text']) + '\n'
 
     return web.Response(text=m)
+
 
 async def listjs(request):
     #ret = {}
@@ -166,9 +180,10 @@ async def listjs(request):
     # ret_json = json.dumps(ret)
     # print(f'return:{ret_json}')
 
-    #return web.json_response(ret)
+    # return web.json_response(ret)
     return web.json_response(full)
     # return web.json_response(ret_json)
+
 
 async def remove(request):
     l = app['clipboards']
@@ -181,13 +196,13 @@ async def remove(request):
         #m = f'삭제했습니다. {len(l)}개의 항목이 남았습니다<br><br>'
         m = f'삭제했습니다. {len(l)}개의 항목이 남았습니다\n\n'
 
-
         # 항목들도 다 보여주기로 합니다
         for i in l:
             #m += deco_link(i) + '<br>'
             m += transl(i['text']) + '\n'
 
     return web.Response(text=m)
+
 
 async def init(app):
     app['engine'] = await create_engine(host='192.168.1.204',
@@ -199,23 +214,24 @@ async def init(app):
     await db_fetch_rows(app['clipboards'], app['engine'])
 
     app.add_routes([
-                    # react용 리스트 반납 
-                    web.get('/memo/api/listjs', listjs), 
-                    # 터미널용 리스트 반납 
-                    web.get('/memo/api/list', list), 
+        # react용 리스트 반납
+        web.get('/memo/api/listjs', listjs),
+        # 터미널용 리스트 반납
+        web.get('/memo/api/list', list),
 
-                    # react용 메모 추가
-                    web.post('/memo/api/addjs', addjs),
-                    # 터미널용 메모 추가
-                    web.get('/memo/api/add/{content:.*}', add),
+        # react용 메모 추가
+        web.post('/memo/api/addjs', addjs),
+        # 터미널용 메모 추가
+        web.get('/memo/api/add/{content:.*}', add),
 
-                    # react용 메모 제거
-                    web.post('/memo/api/removejs', removejs),
-                    # 터미널용 메모 제거
-                    web.get('/memo/api/remove', remove)
-                ])
+        # react용 메모 제거
+        web.post('/memo/api/removejs', removejs),
+        # 터미널용 메모 제거
+        web.get('/memo/api/remove', remove)
+    ])
 
     return app
+
 
 async def db_fetch_rows(lt, engine):
     # app['clipboards'] = []
@@ -227,7 +243,7 @@ async def db_fetch_rows(lt, engine):
             dict['type'] = r.type
             dict['text'] = r.text
             lt.append(dict)
-    # app['clipboards'] = l 
+    # app['clipboards'] = l
     print(f'clipboard:{lt}')
 
     return 0
@@ -243,8 +259,7 @@ if __name__ == "__main__":
 
     app = web.Application()
 
-
-    # clipboarrd 구조 
+    # clipboarrd 구조
     #       { uid (_key값), time , text, type(0 or 1 : text or url ) }
 
     '''
@@ -259,10 +274,8 @@ if __name__ == "__main__":
 
     # print(app['clipboards'][0]['text'])
 
-
     web.run_app(init(app), path=args.path)
     # web.run_app(init(app), port=8080)
     # web.run_app(app, port=8080)
     # web.run_app(init(app), path='/tmp/api.sock')
     #web.run_app(app, path='/tmp/api.sock', port=8080)
-
