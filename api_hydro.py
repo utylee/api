@@ -8,6 +8,8 @@ import re
 import argparse
 import random
 import time
+import math
+import copy
 from aiopg.sa import create_engine
 
 
@@ -19,18 +21,32 @@ def create_uid():
 
 async def updatejs(request):
     js = await request.json()
-    print('updatejs:got js:{js}')
-    result = await db_update_row(js, request.app['engine'])
-    return web.json_response({'result': result})
+    print(f'updatejs::{js}')
+
+    # result 반환은 따로 없는 것 같습니다 예제를 보니
+    # result = await db_update_row(js, request.app['engine'])
+    await db_update_row(js, request.app['engine'])
+    # print(f'result:{result}')
+
+    return web.json_response({'result': 1})
     # return web.json_response(ret_json)
 
 
 async def listjs(request):
     # ret = {}
     ret = []
-    app['clipboards'] = await db_fetch_rows(app['clipboards'], app['engine'])
+    # app['clipboards'] = await db_fetch_rows(app['clipboards'], app['engine'])
+    # app['db_boards'] = await db_fetch_rows(app['db_boards'], app['engine'])
+    await db_fetch_rows(app['db_boards'], app['engine'])
 
-    full = app['clipboards']
+    temp_boards = prepare_serialize(app['db_boards'])
+
+    # full = app['clipboards']
+    full = []
+    for i in range(1, 9):
+        # full.append(app['db_boards'][i])
+        full.append(temp_boards[i])
+
     # i = 0
     for l in full:
         # temp = {}
@@ -74,8 +90,10 @@ async def init(app):
     #                           password='sksmsqnwk11')
     # print('start')
     # print(app['engine'])
-    app['clipboards'] = []
-    await db_fetch_rows(app['clipboards'], app['engine'])
+    # app['clipboards'] = []
+    app['db_boards'] = []
+    # await db_fetch_rows(app['clipboards'], app['engine'])
+    await db_fetch_rows(app['db_boards'], app['engine'])
 
     '''
         {
@@ -98,7 +116,8 @@ async def init(app):
         },
     '''
 
-    for i in app['clipboard']:
+    # for i in app['clipboard']:
+    for i in app['db_boards']:
         print(i)
 
     return app
@@ -106,6 +125,7 @@ async def init(app):
 
 async def db_update_row(js, engine):
     result = 0
+    print(f'db_update_row: js : {js}')
     async with engine.acquire() as conn:
         result = await conn.execute(dh.tbl_hydro.update().where(dh.tbl_hydro.c.id == js['id'])
                                     .values(plantname=js['plantName'],
@@ -124,30 +144,151 @@ async def db_update_row(js, engine):
 
 async def db_fetch_rows(lt, engine):
     # app['clipboards'] = []
-    lt = []
+    # lt = []
     async with engine.acquire() as conn:
         async for r in conn.execute(dh.tbl_hydro.select()):
-            dict = {}
-            dict['id'] = r.id
-            dict['plantName'] = r.plantname
-            dict['waterGauge'] = r.watergauge
-            dict['waterDate'] = r.waterdate
-            dict['warning'] = r.warning
-            dict['growthGauge'] = r.growthgauge
-            dict['pieces'] = r.pieces
-            dict['rootVolume'] = r.rootvolume
-            dict['waterRate'] = r.waterrate
-            dict['rootRate'] = r.rootrate
-            dict['growthRate'] = r.growthrate
-            dict['imageUrl'] = r.imageurl
-            lt.append(dict)
-            # lt = dict
-    # app['clipboards'] = lt
-    for i in lt:
-        print(f'{i}')
-        # print(f'clipboard:{lt}')
+            dt = {}
+            dt['id'] = r.id
+            dt['plantName'] = r.plantname
+            dt['waterGauge'] = r.watergauge
+            dt['waterDate'] = r.waterdate
+            dt['warning'] = r.warning
+            dt['growthGauge'] = r.growthgauge
+            dt['pieces'] = r.pieces
+            dt['rootVolume'] = r.rootvolume
+            dt['waterRate'] = r.waterrate
+            dt['rootRate'] = r.rootrate
+            dt['growthRate'] = r.growthrate
+            dt['imageUrl'] = r.imageurl
+            # lt.append(dict)
 
-    return lt
+            # 저장될 자료형 형식은 아래와 같습니다
+            # {1: {id: xxx, plantName: xxx ..}, 2: { xxx}}
+            lt[dt['id']] = dt
+            # lt[dt['id']].append(dt)
+            # lt.update({dt['id']: dt})
+            # lt = dict
+
+    # app['db_boards'] = lt
+
+    # 이후 id:8 발아판은 워터게이지를 변환해서 각 배열로 갖고 있게 합니다
+
+    t1 = math.floor(lt[8]['waterGauge'] / 10000)
+    t2 = lt[8]['waterGauge'] % 10000
+    t3 = t2 % 100
+    t2 = math.floor(t2 / 100)
+    lt[8]['waterGauge'] = [t1, t2, t3]
+    # print(f'clipboard:{lt}')
+
+    # for i in lt:
+    #     print(f'{i}')
+    # print(f'clipboard:{lt}')
+
+    # return lt
+
+
+def calc_each_row(app):
+    lt = app['db_boards']
+    element = app['calc_divide_element']
+
+    print(f'calc_each_row:lt: {lt}')
+
+    # 일반과 씨앗발아를 별개로 계산해줍니다
+    # 일반판
+    for i in range(1, 8):
+        # 소수셋째자리까지만 구합니다
+        water_delta = round(lt[i]['waterRate'] / element, 3)
+        lt[i]['waterGauge'] -= water_delta
+        if lt[i]['waterGauge'] < 0:
+            lt[i]['waterGauge'] = 0
+
+        root_delta = round(lt[i]['rootRate'] / element, 3)
+        lt[i]['rootVolume'] += root_delta
+        if lt[i]['rootVolume'] > 100:
+            lt[i]['rootVolume'] = 100
+
+        growth_delta = round(lt[i]['growthRate'] / element, 3)
+        lt[i]['growthGauge'] += growth_delta
+        if lt[i]['growthGauge'] > 100:
+            lt[i]['growthGauge'] = 100
+
+    # 씨앗발아판
+    # t1 = math.floor(lt[8]['waterGauge'] / 10000)
+    # t2 = lt[8]['waterGauge'] % 10000
+    # t3 = t2 % 100
+    # t2 = math.floor(t2 / 100)
+
+    gem_delta = round(lt[8]['waterRate'] / element, 3)
+    print(f'gem_delta: {gem_delta}')
+    print(lt[8]['waterGauge'])
+    for i in range(0, 3):
+        # lt[8]['waterGauge'][i] -= gem_delta
+        lt[8]['waterGauge'][i] = lt[8]['waterGauge'][i] - gem_delta
+        print(lt[8]['waterGauge'][i])
+        if lt[8]['waterGauge'][i] < 0:
+            lt[8]['waterGauge'][i] = 0
+
+    print(lt[8]['waterGauge'])
+    # print(f'{lt}')
+
+
+async def insert_calc_result(app):
+    lt = app['db_boards']
+
+    temp_boards = prepare_serialize(lt)
+    print(f'before inserting temp_boards: {temp_boards}')
+
+    # 각 Gauge를 정수화한 값을 db에 넣어줍니다
+    # temp_boards = copy.deepcopy(lt)
+
+    # for i in range(1, 8):
+    #     temp_boards[i]['waterGauge'] = round(temp_boards[i]['waterGauge'])
+    #     temp_boards[i]['growthGauge'] = round(temp_boards[i]['growthGauge'])
+    #     temp_boards[i]['rootVolume'] = round(temp_boards[i]['rootVolume'])
+
+    # # id: 8 발아판 waterGauge를 통합합니다
+    # temp_boards[8]['waterGauge'] = round(temp_boards[8]['waterGauge'][0] * 10000) \
+    #     + round(temp_boards[8]['waterGauge'][1]) * 100 \
+    #     + round(temp_boards[8]['waterGauge'][2])
+
+    # 각 id 한 row씩 db에 넣어줍니다
+    for i in range(1, 9):
+        await db_update_row(temp_boards[i], app['engine'])
+
+
+# db에 insert하거나 listjs 에 반납하기 위해 gem배열을 묶고 각 게이지값을 정수화합니다
+def prepare_serialize(lt):
+    # 각 Gauge를 정수화한 값을 db에 넣어줍니다
+    temp_boards = copy.deepcopy(lt)
+
+    for i in range(1, 8):
+        temp_boards[i]['waterGauge'] = round(temp_boards[i]['waterGauge'])
+        temp_boards[i]['growthGauge'] = round(temp_boards[i]['growthGauge'])
+        temp_boards[i]['rootVolume'] = round(temp_boards[i]['rootVolume'])
+
+    # id: 8 발아판 waterGauge를 통합합니다
+    temp_boards[8]['waterGauge'] = round(temp_boards[8]['waterGauge'][0]) * 10000 \
+        + round(temp_boards[8]['waterGauge'][1]) * 100 \
+        + round(temp_boards[8]['waterGauge'][2])
+
+    return temp_boards
+
+
+async def timer_proc(app):
+    while True:
+        try:
+            # 계산을 행하기 전 최신 db 값을 항상 받아옵니다
+            await db_fetch_rows(app['db_boards'], app['engine'])
+            calc_each_row(app)
+            await insert_calc_result(app)
+
+        except:
+            print('!!except')
+            pass
+
+            # 30분에 한 번 씩 업데이트 합니다
+        await asyncio.sleep(1800)
+        # await asyncio.sleep(3)
 
 
 async def create_bg_tasks(app):
@@ -155,12 +296,19 @@ async def create_bg_tasks(app):
                                         database='hydro_db',
                                         user='utylee',
                                         password='sksmsqnwk11')
-    app['clipboards'] = []
-    await db_fetch_rows(app['clipboards'], app['engine'])
+    # db데이터 관리변수입니다
+    # app['db_boards'] = []
+    app['db_boards'] = {}
+    await db_fetch_rows(app['db_boards'], app['engine'])
+
+    # 게이지 프로시져 시작
+    app['timer_proc'] = app.loop.create_task(timer_proc(app))
+    # app['timer_proc'] = asyncio.create_task(timer_proc(app))
 
 
 async def clean_bg_tasks(app):
-    pass
+    app['timer_proc'].cancel()
+    await app['timer_proc']
 
 
 if __name__ == "__main__":
@@ -175,6 +323,10 @@ if __name__ == "__main__":
 
     app = web.Application()
     app['engine'] = []
+    # 각 rate는 일주일 동안 몇 프로이냐이고
+    #  타이머는 30분에 한번씩 돌아가는 것을 고려한 유닛설정입니다
+    # 7 * 24 * 2 = 336
+    app['calc_divide_element'] = 7 * 24 * 2
     app.on_startup.append(create_bg_tasks)
     app.on_cleanup.append(clean_bg_tasks)
 
