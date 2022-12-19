@@ -125,7 +125,7 @@ async def init(app):
 
 async def db_update_row(js, engine):
     result = 0
-    print(f'db_update_row: js : {js}')
+    # print(f'db_update_row: js : {js}')
     async with engine.acquire() as conn:
         result = await conn.execute(dh.tbl_hydro.update().where(dh.tbl_hydro.c.id == js['id'])
                                     .values(plantname=js['plantName'],
@@ -171,13 +171,14 @@ async def db_fetch_rows(lt, engine):
 
     # app['db_boards'] = lt
 
+    # id:8 발아판 게이지를 growth root게이지를 각각 활용하므로
+    # 배열로 변환할 필요가 없습니다
     # 이후 id:8 발아판은 워터게이지를 변환해서 각 배열로 갖고 있게 합니다
+    # t1 = math.floor(lt[8]['waterGauge'] / 10000)
+    # t2 = lt[8]['waterGauge'] % 10000
+    # t3 = t2 % 100
+    # t2 = math.floor(t2 / 100)
 
-    t1 = math.floor(lt[8]['waterGauge'] / 10000)
-    t2 = lt[8]['waterGauge'] % 10000
-    t3 = t2 % 100
-    t2 = math.floor(t2 / 100)
-    lt[8]['waterGauge'] = [t1, t2, t3]
     # print(f'clipboard:{lt}')
 
     # for i in lt:
@@ -191,26 +192,31 @@ def calc_each_row(app):
     lt = app['db_boards']
     element = app['calc_divide_element']
 
-    print(f'calc_each_row:lt: {lt}')
+    # print(f'calc_each_row:')
+    # print(f'full: {lt}')
 
     # 일반과 씨앗발아를 별개로 계산해줍니다
     # 일반판
     for i in range(1, 8):
         # 소수셋째자리까지만 구합니다
-        water_delta = round(lt[i]['waterRate'] / element, 3)
+        water_delta = round(lt[i]['waterRate'] / element, 3) * 1000
+        # print(f'water_delta: {water_delta}')
         lt[i]['waterGauge'] -= water_delta
         if lt[i]['waterGauge'] < 0:
             lt[i]['waterGauge'] = 0
 
-        root_delta = round(lt[i]['rootRate'] / element, 3)
+        root_delta = round(lt[i]['rootRate'] / element, 3) * 1000
+        # print(f'root_delta: {root_delta}')
         lt[i]['rootVolume'] += root_delta
-        if lt[i]['rootVolume'] > 100:
-            lt[i]['rootVolume'] = 100
+        # 100 * 1000: 계산편의상 100%에서 0세개를 더 추가해줍니다
+        if lt[i]['rootVolume'] > 100000:
+            lt[i]['rootVolume'] = 100000
 
-        growth_delta = round(lt[i]['growthRate'] / element, 3)
+        growth_delta = round(lt[i]['growthRate'] / element, 3) * 1000
+        # print(f'growth_delta: {growth_delta}')
         lt[i]['growthGauge'] += growth_delta
-        if lt[i]['growthGauge'] > 100:
-            lt[i]['growthGauge'] = 100
+        if lt[i]['growthGauge'] > 100000:
+            lt[i]['growthGauge'] = 100000
 
     # 씨앗발아판
     # t1 = math.floor(lt[8]['waterGauge'] / 10000)
@@ -218,17 +224,29 @@ def calc_each_row(app):
     # t3 = t2 % 100
     # t2 = math.floor(t2 / 100)
 
-    gem_delta = round(lt[8]['waterRate'] / element, 3)
-    print(f'gem_delta: {gem_delta}')
-    print(lt[8]['waterGauge'])
-    for i in range(0, 3):
-        # lt[8]['waterGauge'][i] -= gem_delta
-        lt[8]['waterGauge'][i] = lt[8]['waterGauge'][i] - gem_delta
-        print(lt[8]['waterGauge'][i])
-        if lt[8]['waterGauge'][i] < 0:
-            lt[8]['waterGauge'][i] = 0
+    gem_delta = round(lt[8]['waterRate'] / element, 3) * 1000
+    # print(f'gem_delta: {gem_delta}')
+    # print(f'gem.waterGauge: ', lt[8]['waterGauge'] )
+    lt[8]['waterGauge'] -= gem_delta
+    # print(f'gem.waterGauge: ', lt[8]['waterGauge'] )
+    if lt[8]['waterGauge'] < 0:
+        lt[8]['waterGauge'] = 0
+    lt[8]['growthGauge'] -= gem_delta
+    if lt[8]['growthGauge'] < 0:
+        lt[8]['growthGauge'] = 0
+    lt[8]['rootVolume'] -= gem_delta
+    if lt[8]['rootVolume'] < 0:
+        lt[8]['rootVolume'] = 0
+    # print('ok')
 
-    print(lt[8]['waterGauge'])
+    # for i in range(0, 3):
+    #     # lt[8]['waterGauge'][i] -= gem_delta
+    #     lt[8]['waterGauge'][i] = lt[8]['waterGauge'][i] - gem_delta
+    #     print(lt[8]['waterGauge'][i])
+    #     if lt[8]['waterGauge'][i] < 0:
+    #         lt[8]['waterGauge'][i] = 0
+
+    # print(lt[8]['waterGauge'])
     # print(f'{lt}')
 
 
@@ -236,7 +254,7 @@ async def insert_calc_result(app):
     lt = app['db_boards']
 
     temp_boards = prepare_serialize(lt)
-    print(f'before inserting temp_boards: {temp_boards}')
+    # print(f'before inserting temp_boards: {temp_boards}')
 
     # 각 Gauge를 정수화한 값을 db에 넣어줍니다
     # temp_boards = copy.deepcopy(lt)
@@ -261,15 +279,16 @@ def prepare_serialize(lt):
     # 각 Gauge를 정수화한 값을 db에 넣어줍니다
     temp_boards = copy.deepcopy(lt)
 
-    for i in range(1, 8):
+    for i in range(1, 9):
         temp_boards[i]['waterGauge'] = round(temp_boards[i]['waterGauge'])
         temp_boards[i]['growthGauge'] = round(temp_boards[i]['growthGauge'])
         temp_boards[i]['rootVolume'] = round(temp_boards[i]['rootVolume'])
 
+    # 안합니다
     # id: 8 발아판 waterGauge를 통합합니다
-    temp_boards[8]['waterGauge'] = round(temp_boards[8]['waterGauge'][0]) * 10000 \
-        + round(temp_boards[8]['waterGauge'][1]) * 100 \
-        + round(temp_boards[8]['waterGauge'][2])
+    # temp_boards[8]['waterGauge'] = round(temp_boards[8]['waterGauge'][0]) * 10000 \
+    #     + round(temp_boards[8]['waterGauge'][1]) * 100 \
+    #     + round(temp_boards[8]['waterGauge'][2])
 
     return temp_boards
 
@@ -288,7 +307,7 @@ async def timer_proc(app):
 
             # 30분에 한 번 씩 업데이트 합니다
         await asyncio.sleep(1800)
-        # await asyncio.sleep(3)
+        # await asyncio.sleep(1)
 
 
 async def create_bg_tasks(app):
@@ -302,8 +321,9 @@ async def create_bg_tasks(app):
     await db_fetch_rows(app['db_boards'], app['engine'])
 
     # 게이지 프로시져 시작
-    app['timer_proc'] = app.loop.create_task(timer_proc(app))
-    # app['timer_proc'] = asyncio.create_task(timer_proc(app))
+    # deprecated error
+    # app['timer_proc'] = app.loop.create_task(timer_proc(app))
+    app['timer_proc'] = asyncio.create_task(timer_proc(app))
 
 
 async def clean_bg_tasks(app):
