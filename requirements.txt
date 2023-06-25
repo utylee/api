@@ -7,6 +7,7 @@ attrs==21.2.0
 autopep8==2.0.0
 charset-normalizer==2.0.9
 frozenlist==1.2.0
+greenlet==2.0.2
 idna==3.3
 multidict==5.2.0
 psycopg2-binary==2.9.3
