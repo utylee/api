@@ -7,17 +7,111 @@ from aiopg.sa import create_engine
 
 import logging
 import logging.handlers
+import json
+
+from collections import OrderedDict
+import copy
+
+
+async def upload_complete(request):
+    js_ = await request.json()
+    log.info(f'upload_complete::js_ is {js_}')
+
+    # 업로드 성공 플래그일 경우
+    if js_['result'] == 0:
+        engine = request.app['db']
+        file = js_['file']
+
+        try:
+            async with engine.acquire() as conn:
+                async with conn.execute(db.tbl_youtube_files.update()
+                                        .where(db.tbl_youtube_files.c.filename == file)
+                                        .values(uploading=3)):
+                    log.info(f'upload_complete::changed uploading to 3')
+        except:
+            log.info(f'upload_complete::exception')
+
+    return web.Response(text='ok')
+
+
+async def gimme_que(request):
+    # 달라는 요청을 받았으므로 OrderedDict 에서 첫번째 항목을 꺼내서 전달해줍니다
+    # 그리고 db의 업로드 상태를 변경합니다
+    log.info('came into gimme_que')
+    log.info(request.app['youtube_queue'])
+    queue = request.app['youtube_queue']
+    resp = (0, 0)
+    if (len(queue) > 0):
+        # queue 를 popitem 하면 변경되므로 복사해서 db 의 copying 플래그를 가져옵니다
+        queue_c = copy.deepcopy(queue)
+        resp_c = queue_c.popitem(last=False)
+        log.info(f'resp_c(,) is {resp_c}')
+
+        # db 복사상태 가져오기
+        engine = request.app['db']
+        copying = 0
+
+        try:
+            async with engine.acquire() as conn:
+                async for r in conn.execute(db.tbl_youtube_files.select()
+                                    .where(db.tbl_youtube_files.c.filename == resp_c[0])):
+                    copying = int(r[4])
+                    log.info('gimme_que::current copying flag is {copying}')
+        except:
+            log.info('gimme_que::db select exception')
+
+        if(copying == 2):
+            resp = queue.popitem(last=False)
+            log.info(f'resp(,) is {resp}')
+            # log.info(f'response:: file:{resp[0]}, title:{resp[1]}')
+
+            # db 업로드 상태 변경
+            engine = request.app['db']
+            try:
+                async with engine.acquire() as conn:
+                    async with conn.execute(db.tbl_youtube_files.update()
+                                            .where(db.tbl_youtube_files.c.filename == resp[0])
+                                            .values(uploading=2)):
+
+                        log.info(f'file {resp[0]} db to uploading=2')
+            except:
+                log.info('gimme_que::excepted')
+
+    # return web.json_response(json.dumps({"file": f'{resp[0]}', "title": f'{resp[1]}'}))
+    # return web.Response(text=json.dumps({"file": f'{resp[0]}', "title": f'{resp[1]}'}))
+    log.info(f'response:: file:{resp[0]}, title:{resp[1]}')
+    return web.json_response(json.dumps({"file": resp[0], "title": resp[1]}))
+    # return web.json_response({"file": f'{resp[0]}', "title": f'{resp[1]}'})
+
+'''
+    # next = request.app['youtube_queue'].popitem(last=False)
+    # log.info(f'will send to youtube uploader:file:{next[0]}, title:{next[1]}')
+    try:
+        # youtube uploader 에 post 합니다
+        async with aiohttp.ClientSession() as sess:
+            async with sess.post('http://192.168.1.204:9993/file',
+                                 json=json.dumps(
+                                     {'file': next[0],
+                                         'title': next[1]})):
+                pass
+    except:
+        log.info('gimme_que::exception')
+
+    return web.Response(text='ok')
+'''
+
 
 async def updatejs(request):
     js = await request.json()
     engine = request.app['db']
     key = js['timestamp']
     title = js['title'].strip()
-    
+    filename = ''
+
     y_queueing = 0 if len(title) == 0 else 1
     log.info(f'came into updatejs::{key}, {title}')
 
-    res = '' 
+    res = ''
     r_dict = dict()
 
     try:
@@ -25,11 +119,11 @@ async def updatejs(request):
         async with engine.acquire() as conn:
             log.info('connected')
             async with conn.execute(db.tbl_youtube_files.update()
-                    .where(db.tbl_youtube_files.c.timestamp==key)
-                    .values(title=title, youtube_queueing=y_queueing)):
+                                    .where(db.tbl_youtube_files.c.timestamp == key)
+                                    .values(title=title, youtube_queueing=y_queueing)):
                 pass
             async for r in conn.execute(db.tbl_youtube_files.select()
-                    .where(db.tbl_youtube_files.c.timestamp==key)):
+                                        .where(db.tbl_youtube_files.c.timestamp == key)):
                 if r is not None:
 
                     '''
@@ -48,6 +142,8 @@ async def updatejs(request):
                         sa.Column('timestamp', sa.String(255)))
                     '''
 
+                    filename = r[0]
+
                     r_dict['filename'] = r[0]
                     r_dict['title'] = r[1]
                     r_dict['playlist'] = r[2]
@@ -65,10 +161,24 @@ async def updatejs(request):
                     log.info(f'result:{res}')
                     log.info(f'r_dict:{r_dict}')
                     break
-                
+
+        # 빈 제목이 아니라면 wsl2의 youtube_uploading에 post합니다
+        # xxxx빈 제목이 아니라면 youtube_que 에 넣습니다
+        if y_queueing == 1:
+            # app['youtube_queue'].update({filename: title})
+            log.info('y_queueing == 1')
+            # log.info('youtube_queue inserted')
+            # log.info(request.app['youtube_queue'])
+            async with aiohttp.ClientSession() as sess:
+                async with sess.post('http://192.168.1.204:9993/addque',
+                                     json=json.dumps(
+                                         {'file': filename,
+                                             'title': title})):
+                    log.info(
+                        f'send to youtube_uploading:file:{filename}, title:{title}')
+
     except:
         log.info('updatejs::db exceptioned')
-
 
     return web.json_response(r_dict)
 
@@ -83,7 +193,7 @@ async def listjs(request):
 
     # log.info(l)
     # 정렬해서 전달합니다
-    l.sort(key=lambda x:int(x['timestamp']), reverse=True)
+    l.sort(key=lambda x: int(x['timestamp']), reverse=True)
 
     # return web.Response(text='하핫')
     return web.json_response(l)
@@ -111,13 +221,16 @@ if __name__ == '__main__':
     log.setLevel(logging.DEBUG)
 
     app = web.Application()
+    app['youtube_queue'] = OrderedDict()
 
-    log.info('ㅎㅎㅎㅎ')
+    log.info('api_youtube started')
 
     app.on_startup.append(create_bg_tasks)
 
     app.add_routes([
         web.get('/listjs', listjs),
+        web.get('/gimme_que', gimme_que),
+        web.post('/upload_complete', upload_complete),
         web.post('/updatejs', updatejs),
         web.get('/', handle)
     ])
