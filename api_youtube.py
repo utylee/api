@@ -1,3 +1,5 @@
+import uvloop
+import argparse
 from time import asctime
 import aiohttp
 from aiohttp import web
@@ -102,6 +104,7 @@ async def gimme_que(request):
 
 
 async def updatejs(request):
+    log.info(f'came into updatejs')
     js = await request.json()
     engine = request.app['db']
     key = js['timestamp']
@@ -170,7 +173,8 @@ async def updatejs(request):
             # log.info('youtube_queue inserted')
             # log.info(request.app['youtube_queue'])
             async with aiohttp.ClientSession() as sess:
-                async with sess.post('http://192.168.1.204:9993/addque',
+                # async with sess.post('http://192.168.1.204:9993/addque',
+                async with sess.post('http://localhost/youtube/uploader/addque',
                                      json=json.dumps(
                                          {'file': filename,
                                              'title': title})):
@@ -184,6 +188,7 @@ async def updatejs(request):
 
 
 async def listjs(request):
+    # log.info('listjs')
     engine = request.app['db']
     l = []
     async with engine.acquire() as conn:
@@ -211,14 +216,24 @@ async def create_bg_tasks(app):
                                     database='youtube_db')
 
 if __name__ == '__main__':
+    uvloop.install()
+
+    # ArgumentParser
+    parser = argparse.ArgumentParser(description='api_youtube')
+    parser.add_argument('--port')
+    parser.add_argument('--path')
+    args = parser.parse_args()
 
     # loghandler = logging.FileHandler('/home/utylee/youtube_upload_backend')
+    #'/tmp/youtube_upload_backend.log', maxBytes=5*1024*1024, backupCount=3)
+    # '/home/utylee/youtube_upload_backend.log', maxBytes=5*1024*1024, backupCount=3)
     loghandler = logging.handlers.RotatingFileHandler(
         '/home/utylee/youtube_upload_backend.log', maxBytes=5*1024*1024, backupCount=3)
     loghandler.setFormatter(logging.Formatter('[%(asctime)s]-%(message)s'))
     log = logging.getLogger('log')
     log.addHandler(loghandler)
-    log.setLevel(logging.DEBUG)
+    # log.setLevel(logging.DEBUG)
+    log.setLevel(logging.INFO)
 
     app = web.Application()
     app['youtube_queue'] = OrderedDict()
@@ -235,4 +250,4 @@ if __name__ == '__main__':
         web.get('/', handle)
     ])
 
-    web.run_app(app, port=9992)
+    web.run_app(app, port=args.port, path=args.path)
