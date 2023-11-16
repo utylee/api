@@ -297,58 +297,9 @@ async def lotte_bundang(url):
 
 
 async def get(request):
-    # optionss = webdriver.ChromeOptions()
-    # optionss.add_argument('headless')
-    # optionss.add_argument('window-size=1920x1080')
-    # optionss.add_argument('disable-gpu')
-    # driver = webdriver.Chrome(options=optionss)
-
-
-    '''
-    service = Service(executable_path='/usr/lib/chromium-browser/chromedriver')
-    options = webdriver.ChromeOptions()
-    # options = webdriver.FirefoxOptions()
-    options.add_argument('--headless')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    # driver = webdriver.Chrome(service=service, options=options)
-
-    driver.get('https://www.ehyundai.com/newPortal/DP/DP000000_V.do?branchCd=B00148000')
-    log.info(driver.page_source)
-    '''
-    # print(driver.find_element(By.ID, 'runningTime').text)
-
-    # driver = webdriver.Firefox(service=service, options=options)
-    # print(driver.page_source)
-    # languages = driver.find_element_by_css_selector('#languages').text
-    # log.info(driver.find_element(By.CLASS_NAME, 'runningTime').text)
-    # print(driver.find_element(By.CLASS_NAME, 'runningTime').text)
-
-    lines = []
-    result = 'not found\n\n'
-
-    for i in DEPTS:
-        # log.info(f'connecting: {i}..')
-        log.info(f'connecting: {i[0]}..')
-        status, time = await parse_dept(i)
-        result += f'{i[0]}:\n{status}\n{time}\n\n'
-
-        # async with aiohttp.ClientSession() as sess:
-        #     async with sess.get(i) as resp:
-        #         res = await resp.text()
-        #         # print(res)
-
-        #         # log.info(res)
-
-        #         # html을 파싱합니다
-        #         # <div class="__running"> 찾기
-        #         lines = res.splitlines()
-        #         # print(lines)
-
-        #         status, time = lotte_bundang(lines)
-
-    log.info(f'{result}')
-    return web.Response(text=f'{result}')
+    # return web.Response(text=f'{result}')
+    # json.dumps 중 한글 깨짐 encoding 문제 생길시
+    return web.json_response(json.dumps(request.app['result'], ensure_ascii=False))
 
 
 async def handle(request):
@@ -394,12 +345,12 @@ async def timer_proc(app):
     # loop = asyncio.get_event_loop()
 
     while True:
-        # asyncio.create_task(schedule.run_pending())
-        # # loop.run_until_complete(schedule.run_pending())
-        # await asyncio.sleep(2)
+        asyncio.create_task(schedule.run_pending())
+        # loop.run_until_complete(schedule.run_pending())
+        await asyncio.sleep(2)
 
-        await fetch(app)
-        await asyncio.sleep(30)
+        # await fetch(app)
+        # await asyncio.sleep(30)
 
 
     # while True:
