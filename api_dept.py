@@ -7,6 +7,7 @@ import argparse
 import re
 import json
 import aioschedule as schedule
+import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
@@ -323,7 +324,10 @@ async def fetch(app):
             continue
 
         result += f'{i[0]}:\n{status}\n{time}\n\n'
+        now = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
         app['result'][i[0]] = {'status': status, 'time': time} 
+        app['result']['_INFOS'] = {'FETCH_TIME' : now}
+
 
         # async with aiohttp.ClientSession() as sess:
         #     async with sess.get(i) as resp:
@@ -343,12 +347,15 @@ async def timer_proc(app):
     schedule.every().day.at('22:00').do(fetch, app)
     # schedule.every().day.at('17:37').do(fetch, app)
     # loop = asyncio.get_event_loop()
+    await fetch(app)
 
     while True:
+        ## 메인 용
         asyncio.create_task(schedule.run_pending())
         # loop.run_until_complete(schedule.run_pending())
         await asyncio.sleep(2)
 
+        # 테스트용
         # await fetch(app)
         # await asyncio.sleep(30)
 
