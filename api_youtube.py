@@ -11,7 +11,7 @@ import logging
 import logging.handlers
 import json
 
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 import copy
 
 
@@ -30,10 +30,51 @@ async def upload_complete(request):
                                         .where(db.tbl_youtube_files.c.filename == file)
                                         .values(uploading=3)):
                     log.info(f'upload_complete::changed uploading to 3')
+
+            # youtube uploader의 needRefresh를 호출합니다. websocket
+            async with aiohttp.ClientSession() as sess:
+                async with sess.get('http://192.168.1.204:9993/ws_refresh'):
+                    log.info('call needRefresh')
+
         except:
             log.info(f'upload_complete::exception')
 
     return web.Response(text='ok')
+
+
+async def websocket_handler(request):
+    # transport 를 굳이 쓰지 않아도 되게끔 변경했다고 합니다
+    # eg)https://github.com/aio-libs/aiohttp/issues/4189
+    # peer_info = request.transport.get_extra_info('peername')
+    peer_info = request.get_extra_info('peername')
+    # (host, port) = request.transport.get_extra_info('peername')
+    remote = request.remote
+    # forward = request.headers.get('X-FORWARDED-FOR', 2)
+    # peer_info = f'{host}:{port}'
+    peer_info = f'{peer_info[0]}:{peer_info[1]}'
+    # peer_info = f'{remote}'
+    # peer_info = f'{host}:{port},{remote},{forward}'
+    log.info(f'came into websocket_handlers: {peer_info}')
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+
+    request.app['websockets'][peer_info].add(ws)
+
+    log.info(f'sockets dict:{app["websockets"]}')
+
+    async for msg in ws:
+        if msg.type == aiohttp.WSMsgType.TEXT:
+            if msg.data == 'close':
+                await ws.close()
+            else:
+                log.info(f'ws msg:{msg.data}')
+                await ws.send_str(msg.data + ':answer')
+        elif msg.type == aiohttp.WSMsgType.ERROR:
+            log.info(f'websocket msg type error: {ws.exception()})')
+
+    log.info('websocket closed')
+
+    return ws
 
 
 async def gimme_que(request):
@@ -56,13 +97,13 @@ async def gimme_que(request):
         try:
             async with engine.acquire() as conn:
                 async for r in conn.execute(db.tbl_youtube_files.select()
-                                    .where(db.tbl_youtube_files.c.filename == resp_c[0])):
+                                            .where(db.tbl_youtube_files.c.filename == resp_c[0])):
                     copying = int(r[4])
                     log.info('gimme_que::current copying flag is {copying}')
         except:
             log.info('gimme_que::db select exception')
 
-        if(copying == 2):
+        if (copying == 2):
             resp = queue.popitem(last=False)
             log.info(f'resp(,) is {resp}')
             # log.info(f'response:: file:{resp[0]}, title:{resp[1]}')
@@ -180,6 +221,11 @@ async def updatejs(request):
                                              'title': title})):
                     log.info(
                         f'send to youtube_uploading:file:{filename}, title:{title}')
+            # 또한 needRefresh 를 호출해줍니다. websocket
+            # youtube uploader의 needRefresh를 호출합니다. websocket
+            async with aiohttp.ClientSession() as sess:
+                async with sess.get('http://192.168.1.204:9993/ws_refresh'):
+                    log.info('call needRefresh')
 
     except:
         log.info('updatejs::db exceptioned')
@@ -225,7 +271,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # loghandler = logging.FileHandler('/home/utylee/youtube_upload_backend')
-    #'/tmp/youtube_upload_backend.log', maxBytes=5*1024*1024, backupCount=3)
+    # '/tmp/youtube_upload_backend.log', maxBytes=5*1024*1024, backupCount=3)
     # '/home/utylee/youtube_upload_backend.log', maxBytes=5*1024*1024, backupCount=3)
     loghandler = logging.handlers.RotatingFileHandler(
         '/home/utylee/youtube_upload_backend.log', maxBytes=5*1024*1024, backupCount=3)
@@ -237,6 +283,7 @@ if __name__ == '__main__':
 
     app = web.Application()
     app['youtube_queue'] = OrderedDict()
+    app['websockets'] = defaultdict(set)
 
     log.info('api_youtube started')
 
@@ -247,6 +294,7 @@ if __name__ == '__main__':
         web.get('/gimme_que', gimme_que),
         web.post('/upload_complete', upload_complete),
         web.post('/updatejs', updatejs),
+        # web.get('/ws', websocket_handler),
         web.get('/', handle)
     ])
 
