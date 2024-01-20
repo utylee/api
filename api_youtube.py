@@ -42,6 +42,25 @@ async def upload_complete(request):
     return web.Response(text='ok')
 
 
+async def report_loginjson_date(request):
+    txt = await request.text()
+    log.info(f'loginjson_date:: got::{txt}')
+    app['login_json_date'] = txt
+
+    # 받은 데이터를 db에 저장합니다
+    try:
+        engine = request.app['db']
+        async with engine.acquire() as conn:
+            async with conn.execute(db.tbl_loginjson.update()
+                                    .where(db.tbl_loginjson.c.id == 1)
+                                    .values(date=txt)):
+                log.info(f'loginjson_date db inserted::{txt}')
+    except Exception as e:
+        log.info(f'report_loginjson_date::exception {e}')
+
+    return web.Response(text='ok')
+
+
 async def websocket_handler(request):
     # transport 를 굳이 쓰지 않아도 되게끔 변경했다고 합니다
     # eg)https://github.com/aio-libs/aiohttp/issues/4189
@@ -236,18 +255,20 @@ async def updatejs(request):
 async def listjs(request):
     # log.info('listjs')
     engine = request.app['db']
-    l = []
+    files = []
     async with engine.acquire() as conn:
         async for r in conn.execute(db.tbl_youtube_files.select()):
             # print(r[0])
-            l.append(dict(r))
+            files.append(dict(r))
 
     # log.info(l)
     # 정렬해서 전달합니다
-    l.sort(key=lambda x: int(x['timestamp']), reverse=True)
+    files.sort(key=lambda x: int(x['timestamp']), reverse=True)
 
     # return web.Response(text='하핫')
-    return web.json_response(l)
+    return web.json_response(json.dumps({"json_date": request.app['login_json_date'],
+                                         "files": files}))
+    # return web.json_response(l)
 
 
 async def handle(request):
@@ -256,10 +277,31 @@ async def handle(request):
 
 
 async def create_bg_tasks(app):
-    app['db'] = await create_engine(host='192.168.1.203',
-                                    user='postgres',
-                                    password='sksmsqnwk11',
-                                    database='youtube_db')
+    engine = await create_engine(host='192.168.1.203',
+                                 user='postgres',
+                                 password='sksmsqnwk11',
+                                 database='youtube_db')
+    app['db'] = engine
+    try:
+        # login_json_date를 db로부터 받아둡니다
+        async with engine.acquire() as conn:
+            condition = 0   # 데이터가 없을 경우를 위한 변수입니다
+            async for r in conn.execute(db.tbl_loginjson.select()
+                                        .where(db.tbl_loginjson.c.id == 1)):
+                app['login_json_date'] = r[1]
+                log.info(f'db date fetch:{r[1]}')
+                condition = 1   
+
+            # 데이터가 없을 경우 최초로 삽입해줍니다
+            if condition == 0:
+                log.info('no date in db')
+                async with conn.execute(db.tbl_loginjson.insert()
+                                        .values(id=1,
+                                                date=app['login_json_date'])):
+                    log.info(
+                        f'db date inserted first time:{app["login_json_date"]}')
+    except Exception as e:
+        log.info(f'create_bg_tasks::exception {e}')
 
 if __name__ == '__main__':
     uvloop.install()
@@ -284,6 +326,7 @@ if __name__ == '__main__':
     app = web.Application()
     app['youtube_queue'] = OrderedDict()
     app['websockets'] = defaultdict(set)
+    app['login_json_date'] = '791031-21:00:00'
 
     log.info('api_youtube started')
 
@@ -294,6 +337,7 @@ if __name__ == '__main__':
         web.get('/gimme_que', gimme_que),
         web.post('/upload_complete', upload_complete),
         web.post('/updatejs', updatejs),
+        web.post('/report_loginjson_date', report_loginjson_date),
         # web.get('/ws', websocket_handler),
         web.get('/', handle)
     ])
