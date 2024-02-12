@@ -14,6 +14,8 @@ import json
 from collections import OrderedDict, defaultdict
 import copy
 
+URL_CAPTURE_WATCHER = 'http://localhost/youtube/watcher/deletefile'
+
 
 async def upload_complete(request):
     js_ = await request.json()
@@ -163,6 +165,22 @@ async def gimme_que(request):
 '''
 
 
+async def deletejs(request):
+    # 102 capture_watcher.py PC에 로컬,리모트 모두 삭제 명령을 전달합니다
+    js = await request.json()
+    try:
+        async with aiohttp.ClientSession() as sess:
+            async with sess.post(URL_CAPTURE_WATCHER, json=json.dumps({'timestamp': js['timestamp'],
+                                                                       'filename': js['filename']})) as resp:
+                rsp = await resp.text()
+                log.info(f'response:{rsp}')
+
+    except Exception as e:
+        log.info(f'exception {e}')
+
+    return web.Response(text='done')
+
+
 async def updatejs(request):
     log.info(f'came into updatejs')
     js = await request.json()
@@ -290,7 +308,7 @@ async def create_bg_tasks(app):
                                         .where(db.tbl_loginjson.c.id == 1)):
                 app['login_json_date'] = r[1]
                 log.info(f'db date fetch:{r[1]}')
-                condition = 1   
+                condition = 1
 
             # 데이터가 없을 경우 최초로 삽입해줍니다
             if condition == 0:
@@ -337,6 +355,7 @@ if __name__ == '__main__':
         web.get('/gimme_que', gimme_que),
         web.post('/upload_complete', upload_complete),
         web.post('/updatejs', updatejs),
+        web.post('/deletejs', deletejs),
         web.post('/report_loginjson_date', report_loginjson_date),
         # web.get('/ws', websocket_handler),
         web.get('/', handle)
