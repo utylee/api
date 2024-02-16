@@ -34,6 +34,7 @@ tbl_youtube_uploading = sa.Table('uploading', meta,
 
 tbl_youtube_playlists = sa.Table('playlists', meta,
                                  sa.Column('name', sa.String(255)),
+                                 sa.Column('nickname', sa.String(255)),
                                  sa.Column('index', sa.Integer),
                                  sa.Column('playlist_id', sa.String(
                                      255), primary_key=True),

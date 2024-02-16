@@ -187,10 +187,11 @@ async def updatejs(request):
     engine = request.app['db']
     key = js['timestamp']
     title = js['title'].strip()
+    playlist = js['playlist']
     filename = ''
 
     y_queueing = 0 if len(title) == 0 else 1
-    log.info(f'came into updatejs::{key}, {title}')
+    log.info(f'came into updatejs::{key}, {title}, {playlist}')
 
     res = ''
     r_dict = dict()
@@ -201,7 +202,8 @@ async def updatejs(request):
             log.info('connected')
             async with conn.execute(db.tbl_youtube_files.update()
                                     .where(db.tbl_youtube_files.c.timestamp == key)
-                                    .values(title=title, youtube_queueing=y_queueing)):
+                                    .values(title=title, youtube_queueing=y_queueing\
+                                            , playlist=playlist)):
                 pass
             async for r in conn.execute(db.tbl_youtube_files.select()
                                         .where(db.tbl_youtube_files.c.timestamp == key)):
@@ -255,7 +257,8 @@ async def updatejs(request):
                 async with sess.post('http://localhost/youtube/uploader/addque',
                                      json=json.dumps(
                                          {'file': filename,
-                                             'title': title})):
+                                            'title': title, \
+                                            'playlist': playlist})):
                     log.info(
                         f'send to youtube_uploading:file:{filename}, title:{title}')
             # 또한 needRefresh 를 호출해줍니다. websocket
@@ -274,18 +277,24 @@ async def listjs(request):
     # log.info('listjs')
     engine = request.app['db']
     files = []
+    playlists = []
     async with engine.acquire() as conn:
         async for r in conn.execute(db.tbl_youtube_files.select()):
             # print(r[0])
             files.append(dict(r))
+        async for r in conn.execute(db.tbl_youtube_playlists.select()):
+            playlists.append(dict(r))
 
     # log.info(l)
     # 정렬해서 전달합니다
     files.sort(key=lambda x: int(x['timestamp']), reverse=True)
 
+    playlists.sort(key=lambda x: x['index'])
+
     # return web.Response(text='하핫')
     return web.json_response(json.dumps({"json_date": request.app['login_json_date'],
-                                         "files": files}))
+                                         "files": files, 
+                                         "playlists": playlists}))
     # return web.json_response(l)
 
 
