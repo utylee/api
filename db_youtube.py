@@ -18,7 +18,10 @@ tbl_youtube_files = sa.Table('files', meta,
                              sa.Column('dest_path', sa.String(255)),
                              sa.Column('queueing', sa.Integer),
                              sa.Column('youtube_queueing', sa.Integer),
-                             sa.Column('timestamp', sa.String(255))
+                             sa.Column('timestamp', sa.String(255)),
+                             sa.Column('upscaled', sa.Integer),
+                             sa.Column('video_id', sa.String(255)),
+                             sa.Column('upscale_pct', sa.Integer)
                              # sa.Column('status', sa.String(255)),
                              # sa.Column('timestamp', sa.Integer))
                              )
