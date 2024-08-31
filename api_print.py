@@ -43,7 +43,7 @@ async def removejs(request):
     # t = j['time']
     t = j['uid']
     # 두가지 방법 중 어떤 방법을 써도 됩니다
-    #app['clipboards'] = [i for i in l if i['time'] != j['time']]
+    # app['clipboards'] = [i for i in l if i['time'] != j['time']]
     for i in l:
         # if i['time'] == t:
         if i['uid'] == t:
@@ -71,21 +71,21 @@ async def addjs(request):
     # return web.Response(text='')
     # return web.json_response(m)
 
-    #a = request.match_info['content']
+    # a = request.match_info['content']
 
     dict = {}
-    #dict['time'] = time.time()
+    # dict['time'] = time.time()
     dict['time'] = m['time']
     dict['font_size'] = m['font_size']
     dict['text'] = m['text']
     dict['clone'] = m['clone']
     # dict['type'] = check_type(m['text'])
     dict['uid'] = create_uid()
-    #dict['type'] = 0
+    # dict['type'] = 0
 
     l.append(dict)
     m = f'추가했습니다. 총 {len(l)}개의 항목이 있습니다\n\n'
-    #m = f'추가했습니다. 총 {len(l)}개의 항목이 있습니다<br><br>'
+    # m = f'추가했습니다. 총 {len(l)}개의 항목이 있습니다<br><br>'
 
     # db에 추가합니다
     await db_add_print(request.app['engine'], dict)
@@ -124,11 +124,11 @@ async def db_remove_print(engine, id):
 async def db_add_print(engine, dict):
     async with engine.acquire() as conn:
         await conn.execute(dm.tbl_print.insert().values(font_size=dict['font_size'],
-                                                       # type=dict['type'],
-                                                       time=dict['time'],
-                                                       uid=dict['uid'],
-                                                       clone=dict['clone'],
-                                                       text=dict['text']))
+                                                        # type=dict['type'],
+                                                        time=dict['time'],
+                                                        uid=dict['uid'],
+                                                        clone=dict['clone'],
+                                                        text=dict['text']))
     return 0
 
 
@@ -138,8 +138,8 @@ async def add(request):
 
     dict = {}
     dict['time'] = round(time.time() * 1000)
-    dict['font_size'] = 10 # default
-    dict['clone'] = 3 # default
+    dict['font_size'] = 10  # default
+    dict['clone'] = 3  # default
     # dict['text'] = request.match_info['content']
     dict['text'] = a
     # dict['type'] = check_type(a)
@@ -148,7 +148,7 @@ async def add(request):
 
     l.append(dict)
     m = f'추가했습니다. 총 {len(l)}개의 항목이 있습니다\n\n'
-    #m = f'추가했습니다. 총 {len(l)}개의 항목이 있습니다<br><br>'
+    # m = f'추가했습니다. 총 {len(l)}개의 항목이 있습니다<br><br>'
 
     # db에 추가합니다
     await db_add_print(request.app['engine'], dict)
@@ -156,13 +156,13 @@ async def add(request):
     # 항목들도 다 보여주기로 합니다
     for i in l:
         m += transl(i['text']) + '\n'
-        #m += deco_link(i) + '<br>'
+        # m += deco_link(i) + '<br>'
 
     return web.Response(text=m)
 
 
 async def list(request):
-    #m = ''
+    # m = ''
     l = app['clipboards']
     m = f'총 {len(l)}개의 항목이 있습니다\n\n'
     for i in l:
@@ -172,7 +172,7 @@ async def list(request):
 
 
 async def listjs(request):
-    #ret = {}
+    # ret = {}
     ret = []
     full = app['clipboards']
     # i = 0
@@ -183,8 +183,8 @@ async def listjs(request):
         # 굳이 오브젝트 형태로 재조립하여 보낼 필요가 없어졌습니다
         ret.append(l)
         print(f'update : {l}')
-        #ret['text'] = l
-        #i += 1
+        # ret['text'] = l
+        # i += 1
     # ret_json = json.dumps(ret)
     # print(f'return:{ret_json}')
 
@@ -201,12 +201,12 @@ async def remove(request):
         await db_remove_print(app['engine'], l[-1]['uid'])
         # db에서 먼저삭제후 pop을 하기로 순서를 바꿉니다
         l.pop()
-        #m = f'삭제했습니다. {len(l)}개의 항목이 남았습니다<br><br>'
+        # m = f'삭제했습니다. {len(l)}개의 항목이 남았습니다<br><br>'
         m = f'삭제했습니다. {len(l)}개의 항목이 남았습니다\n\n'
 
         # 항목들도 다 보여주기로 합니다
         for i in l:
-            #m += deco_link(i) + '<br>'
+            # m += deco_link(i) + '<br>'
             m += transl(i['text']) + '\n'
 
     return web.Response(text=m)
@@ -264,8 +264,9 @@ if __name__ == "__main__":
     uvloop.install()
 
     # --path 아큐먼트를 받는 부분입니다
-    parser = argparse.ArgumentParser(description='api')
+    parser = argparse.ArgumentParser(description='api_print')
     parser.add_argument('--path')
+    parser.add_argument('--port')
     args = parser.parse_args()
 
     app = web.Application()
@@ -285,8 +286,12 @@ if __name__ == "__main__":
 
     # print(app['clipboards'][0]['text'])
 
-    web.run_app(init(app), path=args.path)
+    # web.run_app(init(app), port=args.port, path=args.path)
+    web.run_app(init(app),  path=args.path)
+    # web.run_app(init(app), port=9090)
+    # web.run_app(init(app), path=args.path, port=8080)
+    # web.run_app(init(app), port=8080)
     # web.run_app(init(app), port=8080)
     # web.run_app(app, port=8080)
     # web.run_app(init(app), path='/tmp/api.sock')
-    #web.run_app(app, path='/tmp/api.sock', port=8080)
+    # web.run_app(app, path='/tmp/api.sock', port=8080)
