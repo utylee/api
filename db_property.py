@@ -6,11 +6,8 @@ meta = sa.MetaData()
 # time, type, text
 tbl_property = sa.Table('properties', meta,
                         sa.Column('uid', sa.Integer, primary_key=True),
-                        # sa.Column('uid', sa.String(255), primary_key=True),
-                        # sa.Column('font_size', sa.String(1024)),
-                        # sa.Column('type', sa.Integer),
                         sa.Column('apartment', sa.String(1024)),
-                        sa.Column('room_no', sa.String(1024)),
+                        sa.Column('room_no', sa.Integer),
                         sa.Column('floor', sa.Integer),
                         sa.Column('occupant_name', sa.String(1024)),
                         sa.Column('contract_period', sa.Integer),
@@ -23,7 +20,43 @@ tbl_property = sa.Table('properties', meta,
                         sa.Column('updatedtime', sa.Integer),
                         sa.Column('description', sa.String(1024)),
                         sa.Column('payday', sa.Integer),
+                        sa.Column('defectiveness', sa.Integer),
+                        sa.Column('cars', sa.Integer),
+                        sa.Column('pets', sa.Integer),
+                        sa.Column('has_issue', sa.Integer),
                         sa.Column('occupant_id', sa.Integer)
+                        )
+
+tbl_room = sa.Table('rooms', meta,
+                    sa.Column('uid', sa.Integer, primary_key=True),
+                    sa.Column('room_no', sa.Integer),
+                    sa.Column('apartment', sa.String(1024)),
+                    sa.Column('floor', sa.Integer),
+                    sa.Column('sq_footage', sa.Integer),
+                    sa.Column('defects', sa.String(1024)),
+                    sa.Column('defects_history', sa.String(1024)),
+                    sa.Column('description', sa.String(1024)),
+                    sa.Column('occupied', sa.Integer),
+                    sa.Column('occupant_id', sa.Integer),
+                    sa.Column('occupant_name', sa.String(1024)),
+                    sa.Column('deposit_history', sa.Text),
+                    sa.Column('type', sa.String(1024))
+                    )
+
+tbl_occupant = sa.Table('occupants', meta,
+                        sa.Column('uid', sa.Integer, primary_key=True),
+                        sa.Column('name', sa.String(1024)),
+                        sa.Column('sex', sa.String(1024)),
+                        sa.Column('age', sa.Integer),
+                        sa.Column('height', sa.Integer),
+                        sa.Column('shape', sa.String(1024)),
+                        sa.Column('impression', sa.String(1024)),
+                        sa.Column('defectiveness', sa.String(1024)),
+                        sa.Column('cars', sa.Integer),
+                        sa.Column('pets', sa.Integer),
+                        sa.Column('description', sa.String(1024)),
+                        sa.Column('phone', sa.String(1024)),
+                        sa.Column('complaints', sa.String(1024))
                         )
 
 tbl_sms = sa.Table('sms', meta,

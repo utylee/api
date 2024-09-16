@@ -7,6 +7,8 @@ import random
 import time
 import uvloop
 from aiopg.sa import create_engine
+from sqlalchemy import and_
+from psycopg2.extras import Json
 import db_property as dp
 
 import logging
@@ -43,7 +45,8 @@ def parse_sms(s):
 
     # example sms:
     # '예금주:이태윤\n 200,000원 입금되었습니다'
-    result = re.search(r'예금주:[\s\t]*([ㄱ-ㅎ가-힣]+)\n[\s\t]*([0-9,]+)원', s, flags=re.I)
+    result = re.search(
+        r'예금주:[\s\t]*([ㄱ-ㅎ가-힣]+)\n[\s\t]*([0-9,]+)원', s, flags=re.I)
     # print(f'parse_sms::result is {result}')
 
     try:
@@ -61,6 +64,93 @@ def parse_sms(s):
         pass
 
     return name, pay
+
+
+async def db_fetch_roominfo(engine, js):
+    apart = js['apartment']
+    room_no = js['room_no']
+    ret = {}
+    async with engine.acquire() as conn:
+        async for r in conn.execute(dp.tbl_room.select()
+                                    .where(and_(dp.tbl_room.c.apartment == apart,
+                                                dp.tbl_room.c.room_no == room_no))):
+            ret['uid'] = r['uid']
+            ret['room_no'] = r['room_no']
+            ret['apartment'] = r['apartment']
+            ret['floor'] = r['floor']
+            ret['sq_footage'] = r['sq_footage']
+            ret['defects'] = r['defects']
+            ret['defects_history'] = r['defects_history']
+            ret['description'] = r['description']
+            ret['occupied'] = r['occupied']
+            ret['occupant_id'] = r['occupant_id']
+            ret['occupant_name'] = r['occupant_name']
+            ret['deposit_history'] = r['deposit_history']
+            ret['type'] = r['type']
+
+            print(r)
+            print(ret)
+
+    # 입금내역을 파싱하여 배열에 담아 리턴합니다
+    # 구분자는 외부 ? 및 내부 | 입니다
+    history = ret['deposit_history']
+    try:
+        temp = history.split('?')
+        ret['deposit_history'] = [ t.split('|')  for t in temp]
+    except Exception as e:
+        print(f'exception {e} on db_fetch_roominfo::deposit_history parsing..')
+
+    return ret
+
+
+async def db_fetch_occupantinfo(engine, js):
+    uid = js['uid']
+    print(uid)
+    ret = {}
+    async with engine.acquire() as conn:
+        async for r in conn.execute(dp.tbl_occupant.select()
+                                    .where(dp.tbl_occupant.c.uid == uid)):
+            # ret = r
+            ret['uid'] = r['uid']
+            ret['name'] = r['name']
+            ret['sex'] = r['sex']
+            ret['age'] = r['age']
+            ret['height'] = r['height']
+            ret['shape'] = r['shape']
+            ret['impression'] = r['impression']
+            ret['defectiveness'] = r['defectiveness']
+            ret['cars'] = r['cars']
+            ret['pets'] = r['pets']
+            ret['description'] = r['description']
+            ret['phone'] = r['phone']
+            ret['complaints'] = r['complaints']
+
+            print(r)
+            print(ret)
+
+    return ret
+
+
+async def roominfo(request):
+    print('came into roominfo')
+    # l = request.app['clipboards']
+    m = await request.json()
+    log.info(f'came into roominfo(): m is {m}')
+    print(f'came into roominfo(): m is {m}')
+
+    js = await db_fetch_roominfo(app['engine'], m)
+    return web.json_response(js)
+
+
+async def occupantinfo(request):
+    print('came into occupantinfo')
+    # l = request.app['clipboards']
+    m = await request.json()
+    log.info(f'came into occupantinfo(): m is {m}')
+    print(f'came into occupantinfo(): m is {m}')
+
+    js = await db_fetch_occupantinfo(app['engine'], m)
+    return web.json_response(js)
 
 
 async def deliver_sms(request):
@@ -94,6 +184,12 @@ async def deliver_sms(request):
     print(f'해당 sms를 db에 삽입합니다')
     print(f'dict is {dict}')
     await db_add_sms(request.app['engine'], dict)
+
+    # 받은 sms의 이름과 금액을 기준으로 세입자를 판단후 property db들을 수정해줍니다
+    # ...
+    # ...
+    # 구현예정..
+    #
 
     return web.Response(text='1')
 
@@ -296,10 +392,15 @@ async def listsms(request):
     # return web.json_response(ret)
     return web.json_response(full)
 
+
 async def listjs(request):
     # ret = {}
     ret = []
+    temp_dict = {}
+    temp_dict['maxvill'] = [[], [], []]
+    temp_dict['dochon'] = [[], [], [], []]
 
+    app['clipboards'] = []
     await db_fetch_rows(app['clipboards'], app['engine'])
 
     full = app['clipboards']
@@ -308,16 +409,35 @@ async def listjs(request):
         # temp['text'] = l
         # ret.append(temp)
         # 굳이 오브젝트 형태로 재조립하여 보낼 필요가 없어졌습니다
+
+        floor = l['floor']
+        if (l['apartment'] == 'maxvill'):
+            # 맥스빌은 2,3,4층 이므로 해당배열 0,1,2는 2씩 빼주기로 합니다
+            temp_dict['maxvill'][floor - 2].append(l)
+
+        elif (l['apartment'] == 'dochon'):
+            # 도촌동은 1,2,3,4층 이므로 해당배열 0,1,2,3은 1씩 빼주기로 합니다
+            temp_dict['dochon'][floor - 1].append(l)
+            # temp_dict['dochon'].append(l)
+
         ret.append(l)
-        print(f'update : {l}')
+        # print(f'listjs : {l}')
         # ret['text'] = l
         # i += 1
+    # 결과를 sort 합니다
+    for i in range(0, 3):
+        temp_dict['maxvill'][i].sort(key=lambda x: x['room_no'])
+
+    for i in range(0, 4):
+        temp_dict['dochon'][i].sort(key=lambda x: x['room_no'])
+
     # ret_json = json.dumps(ret)
     # print(f'return:{ret_json}')
 
     # return web.json_response(ret)
-    return web.json_response(full)
     # return web.json_response(ret_json)
+    # return web.json_response(full)
+    return web.json_response(temp_dict)
 
 
 async def remove(request):
@@ -352,6 +472,8 @@ async def init(app):
     app.add_routes([
         web.get('/property/api/listjs', listjs),
         web.get('/property/api/listsms', listsms),
+        web.post('/property/api/roominfo', roominfo),
+        web.post('/property/api/occupantinfo', occupantinfo),
         # 안드로이드로부터 수신한 sms를 전달받습니다
         web.post('/property/api/deliversms', deliver_sms),
 
@@ -395,6 +517,7 @@ async def db_fetch_rows(lt, engine):
             dict['room_no'] = r['room_no']
             dict['floor'] = r['floor']
             dict['occupant_name'] = r['occupant_name']
+            dict['occupant_id'] = r['occupant_id']
             dict['contract_period'] = r['contract_period']
             dict['contract_type'] = r['contract_type']
             dict['reserved_pay'] = r['reserved_pay']
@@ -402,6 +525,10 @@ async def db_fetch_rows(lt, engine):
             dict['non_pay_continues'] = r['non_pay_continues']
             dict['contract_startdate'] = r['contract_startdate']
             dict['contract_remains'] = r['contract_remains']
+            dict['cars'] = r['cars']
+            dict['pets'] = r['pets']
+            dict['has_issue'] = r['has_issue']
+            dict['defectiveness'] = r['defectiveness']
             dict['description'] = r['description']
             dict['payday'] = r['payday']
 
