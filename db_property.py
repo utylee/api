@@ -35,27 +35,28 @@ tbl_room = sa.Table('rooms', meta,
                     sa.Column('sq_footage', sa.Integer),
                     sa.Column('defects', sa.String(1024)),
                     sa.Column('defects_history', sa.String(1024)),
-                    sa.Column('description', sa.String(1024)),
+                    sa.Column('description', sa.Text),
                     sa.Column('occupied', sa.Integer),
                     sa.Column('occupant_id', sa.Integer),
                     sa.Column('occupant_name', sa.String(1024)),
                     sa.Column('deposit_history', sa.Text),
-                    sa.Column('type', sa.String(1024))
+                    sa.Column('room_type', sa.String(1024))
                     )
 
 tbl_occupant = sa.Table('occupants', meta,
                         sa.Column('uid', sa.Integer, primary_key=True),
                         sa.Column('name', sa.String(1024)),
                         sa.Column('sex', sa.String(1024)),
-                        sa.Column('age', sa.Integer),
+                        sa.Column('age', sa.String(1024)),
                         sa.Column('height', sa.Integer),
                         sa.Column('shape', sa.String(1024)),
                         sa.Column('impression', sa.String(1024)),
                         sa.Column('defectiveness', sa.String(1024)),
                         sa.Column('cars', sa.Integer),
                         sa.Column('pets', sa.Integer),
-                        sa.Column('description', sa.String(1024)),
+                        sa.Column('description', sa.Text),
                         sa.Column('phone', sa.String(1024)),
+                        sa.Column('deposit_history', sa.Text),
                         sa.Column('complaints', sa.String(1024))
                         )
 

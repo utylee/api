@@ -86,19 +86,56 @@ async def db_fetch_roominfo(engine, js):
             ret['occupant_id'] = r['occupant_id']
             ret['occupant_name'] = r['occupant_name']
             ret['deposit_history'] = r['deposit_history']
-            ret['type'] = r['type']
+            ret['room_type'] = r['room_type']
 
             print(r)
             print(ret)
 
-    # 입금내역을 파싱하여 배열에 담아 리턴합니다
-    # 구분자는 외부 ? 및 내부 | 입니다
-    history = ret['deposit_history']
+    # 입금내역 및 설명을 파싱하여 배열에 담아 리턴합니다
+    # 입금내역 구분자는 외부 ? 및 내부 | 입니다
+    # 설명 구분자는  | 입니다
     try:
-        temp = history.split('?')
-        ret['deposit_history'] = [ t.split('|')  for t in temp]
+        history = ret['deposit_history']
+        temp_history = history.split('?')
+        ret['deposit_history'] = [t.split('|') for t in temp_history]
+
+        # ret['description'] =  ret['description'].split('|')
     except Exception as e:
         print(f'exception {e} on db_fetch_roominfo::deposit_history parsing..')
+
+    return ret
+
+
+async def db_fetch_property(engine, js):
+    uid = js['uid']
+    print(uid)
+    ret = {}
+    async with engine.acquire() as conn:
+        async for r in conn.execute(dp.tbl_property.select()
+                                    .where(dp.tbl_property.c.uid == uid)):
+            ret['uid'] = r['uid']
+            ret['apartment'] = r['apartment']
+            ret['room_no'] = r['room_no']
+            ret['floor'] = r['floor']
+            ret['occupant_name'] = r['occupant_name']
+            ret['contract_period'] = r['contract_period']
+            ret['contract_type'] = r['contract_type']
+            ret['reserved_pay'] = r['reserved_pay']
+            ret['monthly_pay'] = r['monthly_pay']
+            ret['non_pay_continues'] = r['non_pay_continues']
+            ret['contract_startdate'] = r['contract_startdate']
+            ret['contract_remains'] = r['contract_remains']
+            ret['updatedtime'] = r['updatedtime']
+            ret['description'] = r['description']
+            ret['payday'] = r['payday']
+            ret['defectiveness'] = r['defectiveness']
+            ret['cars'] = r['cars']
+            ret['pets'] = r['pets']
+            ret['has_issue'] = r['has_issue']
+            ret['occupant_id'] = r['occupant_id']
+
+            print(r)
+            print(ret)
 
     return ret
 
@@ -123,34 +160,232 @@ async def db_fetch_occupantinfo(engine, js):
             ret['pets'] = r['pets']
             ret['description'] = r['description']
             ret['phone'] = r['phone']
+            ret['deposit_history'] = r['deposit_history']
+
             ret['complaints'] = r['complaints']
 
             print(r)
             print(ret)
 
+    # 입금내역 및 설명을 파싱하여 배열에 담아 리턴합니다
+    # 해당 room뿐 아니라 세입자occupant에도 저장해놓아 장기보존하도록 합니다
+    # 입금내역 구분자는 외부 ? 및 내부 | 입니다
+    # 설명 구분자는  | 입니다
+    try:
+        history = ret['deposit_history']
+        temp_history = history.split('?')
+        ret['deposit_history'] = [t.split('|') for t in temp_history]
+
+        # ret['description'] =  ret['description'].split('|')
+    except Exception as e:
+        print(f'exception {e} on db_fetch_roominfo::deposit_history parsing..')
+
     return ret
 
 
-async def roominfo(request):
-    print('came into roominfo')
-    # l = request.app['clipboards']
-    m = await request.json()
-    log.info(f'came into roominfo(): m is {m}')
-    print(f'came into roominfo(): m is {m}')
+async def db_update_occupantinfo(engine, js):
+    uid = js['uid']
+    print(uid)
+    ret = {}
 
-    js = await db_fetch_roominfo(app['engine'], m)
+    # 입금내역 및 설명을 다시구조화하여 넣습니다
+    # 해당 room뿐 아니라 세입자occupant에도 저장해놓아 장기보존하도록 합니다
+    # 입금내역 구분자는 외부 ? 및 내부 | 입니다
+    # 설명 구분자는  | 입니다
+
+    final = ''
+    temp = []
+    try:
+        print(js['deposit_history'])
+        history = js['deposit_history']
+        for h in history:
+            temp.append('|'.join(h))
+        final = '?'.join(temp)
+        print(final)
+
+        # ret['description'] =  ret['description'].split('|')
+    except Exception as e:
+        print(
+            f'exception {e} on db_update_occupantinfo::deposit_history string making..')
+
+    async with engine.acquire() as conn:
+        ret = await conn.execute(dp.tbl_occupant.update()
+                                 .where(dp.tbl_occupant.c.uid == uid)
+                                 .values(name=js['name'],
+                                         sex=js['sex'],
+                                         age=js['age'],
+                                         height=js['height'],
+                                         shape=js['shape'],
+                                         impression=js['impression'],
+                                         defectiveness=js['defectiveness'],
+                                         cars=js['cars'],
+                                         pets=js['pets'],
+                                         description=js['description'],
+                                         phone=js['phone'],
+                                         deposit_history=final,
+                                         complaints=js['complaints']))
+        print(ret)
+
+    return ret
+
+
+async def db_update_property(engine, js):
+    uid = js['uid']
+    # apart = js['apartment']
+    # room_no = js['room_no']
+    print(f'db_update_roominfo::uid:{uid}')
+    ret = {}
+
+    async with engine.acquire() as conn:
+        ret = await conn.execute(dp.tbl_property.update()
+                                 .where(dp.tbl_property.c.uid == uid)
+                                 .values(apartment=js['apartment'],
+                                         room_no=js['room_no'],
+                                         floor=js['floor'],
+                                         occupant_name=js['occupant_name'],
+                                         contract_period=js['contract_period'],
+                                         contract_type=js['contract_type'],
+                                         reserved_pay=js['reserved_pay'],
+                                         monthly_pay=js['monthly_pay'],
+                                         non_pay_continues=js['non_pay_continues'],
+                                         contract_startdate=js['contract_startdate'],
+                                         contract_remains=js['contract_remains'],
+                                         updatedtime=js['updatedtime'],
+                                         description=js['description'],
+                                         payday=js['payday'],
+                                         defectiveness=js['defectiveness'],
+                                         cars=js['cars'],
+                                         pets=js['pets'],
+                                         has_issue=js['has_issue'],
+                                         occupant_id=js['occupant_id']))
+
+        print(ret)
+
+    return ret
+
+
+async def db_update_roominfo(engine, js):
+    # uid = js['uid']
+    apart = js['apartment']
+    room_no = js['room_no']
+    print(f'db_update_roominfo::apart:{apart}, room_no:{room_no}')
+    ret = {}
+
+    # 입금내역 및 설명을 다시구조화하여 넣습니다
+    # 해당 room뿐 아니라 세입자occupant에도 저장해놓아 장기보존하도록 합니다
+    # 입금내역 구분자는 외부 ? 및 내부 | 입니다
+    # 설명 구분자는  | 입니다
+
+    final = ''
+    temp = []
+    try:
+        print(f'db_update_roominfo::{js["deposit_history"]}')
+        history = js['deposit_history']
+        for h in history:
+            temp.append('|'.join(h))
+        final = '?'.join(temp)
+        print(f'db_update_roominfo::final:{final}')
+
+        # ret['description'] =  ret['description'].split('|')
+    except Exception as e:
+        print(
+            f'exception {e} on db_update_roominfo::deposit_history string making..')
+
+    async with engine.acquire() as conn:
+        ret = await conn.execute(dp.tbl_room.update()
+                                 .where(and_(dp.tbl_room.c.apartment == apart,
+                                        dp.tbl_room.c.room_no == room_no))
+                                 .values(uid=js['uid'],
+                                         room_no=js['room_no'],
+                                         floor=js['floor'],
+                                         sq_footage=js['sq_footage'],
+                                         defects=js['defects'],
+                                         defects_history=js['defects_history'],
+                                         description=js['description'],
+                                         occupied=js['occupied'],
+                                         occupant_id=js['occupant_id'],
+                                         occupant_name=js['occupant_name'],
+                                         deposit_history=final,
+                                         room_type=js['room_type']))
+
+        print(ret)
+
+    return ret
+
+
+async def fetch_roominfo(request):
+    print('came into fetch_roominfo')
+    # l = request.app['cipboards']
+    m = await request.json()
+    log.info(f'came into fetch_roominfo(): m is {m}')
+    print(f'came into fetch_roominfo(): m is {m}')
+
+    js = None
+    if (('room_no' in m.keys()) and ('apartment' in m.keys())):
+        js = await db_fetch_roominfo(app['engine'], m)
     return web.json_response(js)
 
 
-async def occupantinfo(request):
-    print('came into occupantinfo')
+async def fetch_property(request):
+    print('came into fetch_property')
     # l = request.app['clipboards']
     m = await request.json()
-    log.info(f'came into occupantinfo(): m is {m}')
-    print(f'came into occupantinfo(): m is {m}')
+    log.info(f'came into fetch_property(): m is {m}')
+    print(f'came into fetch_property(): m is {m}')
 
-    js = await db_fetch_occupantinfo(app['engine'], m)
+    js = None
+    if 'uid' in m.keys():
+        js = await db_fetch_property(app['engine'], m)
     return web.json_response(js)
+
+
+async def fetch_occupantinfo(request):
+    print('came into fetch_occupantinfo')
+    # l = request.app['clipboards']
+    m = await request.json()
+    log.info(f'came into fetch_occupantinfo(): m is {m}')
+    print(f'came into fetch_occupantinfo(): m is {m}')
+
+    js = None
+    if 'uid' in m.keys():
+        js = await db_fetch_occupantinfo(app['engine'], m)
+    return web.json_response(js)
+
+
+async def update_occupantinfo(request):
+    print('came into update_occupantinfo')
+    # l = request.app['clipboards']
+    m = await request.json()
+    log.info(f'came into update_occupantinfo(): m is {m}')
+    print(f'came into update_occupantinfo(): m is {m}')
+
+    js = await db_update_occupantinfo(app['engine'], m)
+    # return web.json_response(js)
+    return web.Response(text='1')
+
+
+async def update_roominfo(request):
+    print('came into update_roominfo')
+    # l = request.app['clipboards']
+    m = await request.json()
+    log.info(f'came into update_roominfo(): m is {m}')
+    print(f'came into update_roominfo(): m is {m}')
+
+    js = await db_update_roominfo(app['engine'], m)
+    # return web.json_response(js)
+    return web.Response(text='1')
+
+
+async def update_property(request):
+    print('came into update_property')
+    # l = request.app['clipboards']
+    m = await request.json()
+    log.info(f'came into update_property(): m is {m}')
+    print(f'came into update_property(): m is {m}')
+
+    js = await db_update_property(app['engine'], m)
+    # return web.json_response(js)
+    return web.Response(text='1')
 
 
 async def deliver_sms(request):
@@ -280,7 +515,7 @@ def transl(t):
 
 
 '''
-tbl_memo = sa.Table('memos', meta, 
+tbl_memo = sa.Table('memos', meta,
         sa.Column('time', sa.Integer, primary_key=True),
         sa.Column('type', sa.Integer),
         sa.Column('text', sa.String(255))
@@ -397,7 +632,8 @@ async def listjs(request):
     # ret = {}
     ret = []
     temp_dict = {}
-    temp_dict['maxvill'] = [[], [], []]
+    # temp_dict['maxvill'] = [[], [], []]
+    temp_dict['richvill'] = [[], [], []]
     temp_dict['dochon'] = [[], [], [], []]
 
     app['clipboards'] = []
@@ -411,9 +647,11 @@ async def listjs(request):
         # 굳이 오브젝트 형태로 재조립하여 보낼 필요가 없어졌습니다
 
         floor = l['floor']
-        if (l['apartment'] == 'maxvill'):
+        # if (l['apartment'] == 'maxvill'):
+        if (l['apartment'] == 'richvill'):
             # 맥스빌은 2,3,4층 이므로 해당배열 0,1,2는 2씩 빼주기로 합니다
-            temp_dict['maxvill'][floor - 2].append(l)
+            # temp_dict['maxvill'][floor - 2].append(l)
+            temp_dict['richvill'][floor - 2].append(l)
 
         elif (l['apartment'] == 'dochon'):
             # 도촌동은 1,2,3,4층 이므로 해당배열 0,1,2,3은 1씩 빼주기로 합니다
@@ -426,7 +664,8 @@ async def listjs(request):
         # i += 1
     # 결과를 sort 합니다
     for i in range(0, 3):
-        temp_dict['maxvill'][i].sort(key=lambda x: x['room_no'])
+        # temp_dict['maxvill'][i].sort(key=lambda x: x['room_no'])
+        temp_dict['richvill'][i].sort(key=lambda x: x['room_no'])
 
     for i in range(0, 4):
         temp_dict['dochon'][i].sort(key=lambda x: x['room_no'])
@@ -472,8 +711,12 @@ async def init(app):
     app.add_routes([
         web.get('/property/api/listjs', listjs),
         web.get('/property/api/listsms', listsms),
-        web.post('/property/api/roominfo', roominfo),
-        web.post('/property/api/occupantinfo', occupantinfo),
+        web.post('/property/api/fetch_roominfo', fetch_roominfo),
+        web.post('/property/api/fetch_occupantinfo', fetch_occupantinfo),
+        web.post('/property/api/fetch_property', fetch_property),
+        web.post('/property/api/update_occupantinfo', update_occupantinfo),
+        web.post('/property/api/update_roominfo', update_roominfo),
+        web.post('/property/api/update_property', update_property),
         # 안드로이드로부터 수신한 sms를 전달받습니다
         web.post('/property/api/deliversms', deliver_sms),
 
@@ -563,7 +806,7 @@ if __name__ == "__main__":
     #       { uid (_key값), time , text, type(0 or 1 : text or url ) }
 
     '''
-    app['clipboards'] = [ 
+    app['clipboards'] = [
             { 'uid': 10000000, time': 1640412852000, 'text': '데헷', 'type': 0 },
             { 'uid': 10000000, time': 1640412853000, 'text': '빵야빵야', 'type': 0 },
             { 'uid': 10000000, time': 1640412854000, 'text': 'http://naver.com', 'type': 1 },
