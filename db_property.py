@@ -57,7 +57,7 @@ tbl_occupant = sa.Table('occupants', meta,
                         sa.Column('description', sa.Text),
                         sa.Column('phone', sa.String(1024)),
                         sa.Column('deposit_history', sa.Text),
-                        sa.Column('complaints', sa.String(1024))
+                        sa.Column('complaints', sa.Text)
                         )
 
 tbl_sms = sa.Table('sms', meta,

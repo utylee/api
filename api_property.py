@@ -161,7 +161,6 @@ async def db_fetch_occupantinfo(engine, js):
             ret['description'] = r['description']
             ret['phone'] = r['phone']
             ret['deposit_history'] = r['deposit_history']
-
             ret['complaints'] = r['complaints']
 
             print(r)
@@ -175,6 +174,18 @@ async def db_fetch_occupantinfo(engine, js):
         history = ret['deposit_history']
         temp_history = history.split('?')
         ret['deposit_history'] = [t.split('|') for t in temp_history]
+
+        # ret['description'] =  ret['description'].split('|')
+    except Exception as e:
+        print(f'exception {e} on db_fetch_roominfo::deposit_history parsing..')
+
+    # 클레임내역 및 완료여부를 파싱하여 배열에 담아 리턴합니다
+    # 입금내역 구분자는 외부 ? 및 내부 | 입니다
+    # 완료 구분자는  | 입니다
+    try:
+        complaits_history = ret['complaints']
+        temp_comp_history = complaits_history.split('?')
+        ret['complaints'] = [t.split('|') for t in temp_comp_history]
 
         # ret['description'] =  ret['description'].split('|')
     except Exception as e:
@@ -208,6 +219,24 @@ async def db_update_occupantinfo(engine, js):
         print(
             f'exception {e} on db_update_occupantinfo::deposit_history string making..')
 
+    # 클레임내역 및 완료 다시구조화하여 넣습니다
+    # 클레임내역 구분자는 외부 ? 및 내부 | 입니다
+    # 완료 구분자는  | 입니다
+
+    complaints_final = ''
+    temp = []
+    try:
+        print(js['complaints'])
+        history = js['complaints']
+        for h in history:
+            temp.append('|'.join(h))
+        complaints_final= '?'.join(temp)
+        print(complaints_final)
+
+    except Exception as e:
+        print(
+            f'exception {e} on db_update_occupantinfo::complaints string making..')
+
     async with engine.acquire() as conn:
         ret = await conn.execute(dp.tbl_occupant.update()
                                  .where(dp.tbl_occupant.c.uid == uid)
@@ -223,7 +252,8 @@ async def db_update_occupantinfo(engine, js):
                                          description=js['description'],
                                          phone=js['phone'],
                                          deposit_history=final,
-                                         complaints=js['complaints']))
+                                         complaints=complaints_final))
+                                         # complaints=js['complaints']))
         print(ret)
 
     return ret
